@@ -1,6 +1,7 @@
 module Main where
 
 import qualified Data.Text as T
+import Data.Char
 import Graphics.UI.Fungen
 
 newtype GameAttribute = Score Int
@@ -37,12 +38,12 @@ gameCycle = do
   printOnScreen (show $ hideCharactersExcept correctGuesses example) Fixed9By15 (0, 30) 1.0 1.0 1.0
 
 keyBindings :: [WheelOfCodeBinding]
-keyBindings = fmap binding ['a'..'z'] where
-  binding char = (Char char, Press, handler char)
+keyBindings = fmap (binding . toEnum) [0..127] where
+  binding char = (Char char, Press, handler $ toLower char)
   handler char _ _ = do
     GameState correctGuesses example <- getGameState
-    when (T.isInfixOf (T.singleton char) example) $
-      setGameState $ GameState (char:correctGuesses) example
+    when (T.isInfixOf (T.singleton char) $ T.toLower example) $
+      setGameState $ GameState (toUpper char:char:correctGuesses) example
 
 hideCharactersExcept :: [Char] -> T.Text -> T.Text
 hideCharactersExcept xs = T.map hide where
