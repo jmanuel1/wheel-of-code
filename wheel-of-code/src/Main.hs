@@ -1,16 +1,19 @@
+{-# LANGUAGE GADTs #-}
+
 module Main where
 
 import qualified Data.Text as T
 import Data.Char
+import System.Random
 import Graphics.UI.Fungen
 
-newtype GameAttribute = Score Int
+data GameAttribute g = RandomGen g => GameAttribute g
 data GameState = GameState [Char] T.Text
 
 type WheelOfCodeObject = GameObject ()
 
-type WheelOfCodeAction a = IOGame () () GameState () a
-type WheelOfCodeBinding = InputBinding () () GameState ()
+type WheelOfCodeAction a g = IOGame (GameAttribute g) () GameState () a
+type WheelOfCodeBinding g = InputBinding (GameAttribute g) () GameState ()
 
 main :: IO ()
 main = do
@@ -20,7 +23,9 @@ main = do
       board = objectGroup "boardGroup" [] -- [createBoard]
       scoreBoard = objectGroup "scoreboardGroup" [] -- [createScoreboard]
       input = keyBindings
-      in funInit winConfig gameMap [board, scoreBoard] (GameState [] $ head examples) () input gameCycle (Timer 40) bmpList
+      (index, randGen') = randomR (0, length examples - 1) $ mkStdGen 4564
+      example = examples !! index
+      in funInit winConfig gameMap [board, scoreBoard] (GameState whitespace example) (GameAttribute randGen') input gameCycle (Timer 40) bmpList
 
 createBoard :: WheelOfCodeObject
 createBoard = let boardBound = [(-25, -6), (25, -6), (25, 6), (-25, 6)]
@@ -32,12 +37,21 @@ createScoreboard = let boardBound = [(-10, -10), (10, -10), (10, 10), (-10, 10)]
                        objPic = Basic (Polyg boardBound 1.0 1.0 1.0 Unfilled)
                       in object "scoreboard" objPic False (230, 230) (0, 0) ()
 
-gameCycle :: WheelOfCodeAction ()
+gameCycle :: WheelOfCodeAction () g
 gameCycle = do
   GameState correctGuesses example <- getGameState
+  when (example == hideCharactersExcept correctGuesses example)
+    changeExample
   printOnScreen (show $ hideCharactersExcept correctGuesses example) Fixed9By15 (0, 30) 1.0 1.0 1.0
 
-keyBindings :: [WheelOfCodeBinding]
+changeExample :: WheelOfCodeAction () g
+changeExample = do
+  GameAttribute randGen <- getGameAttribute
+  let (index, randGen') = randomR (0, length examples - 1) randGen
+  setGameState $ GameState whitespace $ examples !! index
+  setGameAttribute $ GameAttribute randGen'
+
+keyBindings :: [WheelOfCodeBinding g]
 keyBindings = fmap (binding . toEnum) [0..127] where
   binding char = (Char char, Press, handler $ toLower char)
   handler char _ _ = do
@@ -58,3 +72,5 @@ examples = fmap T.pack
   , "def factorial(n):\n\tif n < 0:\n\t\treturn 1\n\telse:\n\t\treturn n*factorial(n-1)"
   , "def triangular(n): return n**2 + n"
   , "def fib(n): return fib(n-1) + fib(n-2) if n > 2 else 1" ]
+
+whitespace = " \t\r\n\v"
